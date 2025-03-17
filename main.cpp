@@ -2,6 +2,7 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <cmath>
 #include "algo.h"
 
 struct EnvData {
@@ -35,10 +36,10 @@ std::vector<EnvData> readCsv(std::string filename) {
         }
 
         data.push_back(EnvData {
-            atof(row[0].c_str()),
-            atof(row[1].c_str()),
-            atof(row[2].c_str()),
-            atof(row[3].c_str()),
+            std::round(atof(row[0].c_str())*10.0)/10.0,
+            std::round(atof(row[1].c_str())*10.0)/10.0,
+            std::round(atof(row[2].c_str())*10.0)/10.0,
+            std::round(atof(row[3].c_str())*10.0)/10.0,
         });
     }
 
@@ -77,22 +78,43 @@ int main() {
     //auto data = readCsv("../output_inside_dummy_const_15_data.csv");
     //auto data = readCsv("../output_inside_dummy_const_5_data.csv");
 
+    int learningSize = static_cast<int>(std::round(data.size()*0.7));
+    double mape_learn = 0;
+    double mape_test = 0;
+    double mape_whole = 0;
+
     auto min = getMin(data);
     auto max = getMax(data);
-    std::cout << "Min: " << min << " | Max: " << max << std::endl;
 
-    int epochs = 70;
-    double learning_rate = 0.05;
+
+    int epochs = 100; // best 70
+    double learning_rate = 0.05; // best 0.05
 
     RTPNN::SDP temperature{min, max, epochs, learning_rate};
 
     int i = 0;
     double pred = 0;
     for (auto el : data) {
-        std::cout << i << ". Reading: " << el.temperature << " | Prediction:" << pred << " | Difference: " << std::abs(el.temperature-pred) << std::endl;
-        pred = temperature.perform(el.temperature, i);
+        auto abs = std::abs(el.temperature-pred);
+        std::cout << i << ". Reading: " << el.temperature << " | Prediction:" << pred << " | Difference: " << abs << std::endl;
+        auto mape_val = abs/std::abs(el.temperature);
+        mape_whole += mape_val;
+        if (i > learningSize) {
+            mape_test += mape_val;
+        } else {
+            mape_learn += mape_val;
+
+        }
+        pred = std::round(temperature.perform(el.temperature, i, i <= learningSize )*10)/10;
+
         ++i;
     }
+
+    std::cout << "Min: " << min << " | Max: " << max << std::endl;
+    std::cout << "Whole MAPE: " << (mape_whole/data.size())*100 << "%" << std::endl;
+    std::cout << "Train MAPE: " << (mape_learn/learningSize)*100 << "%" << std::endl;
+    std::cout << "Test MAPE: " << (mape_test/(data.size()-learningSize))*100 << "%" << std::endl;
+
     return 0;
 }
 

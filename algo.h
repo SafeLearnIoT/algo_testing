@@ -36,7 +36,7 @@ namespace RTPNN
 
         void calculate_trend(double &value);
         void calculate_level(double &value);
-        double predict(double& value);
+
         double mse();
         double phi(double z);
         double Dphi(double z);
@@ -55,7 +55,8 @@ namespace RTPNN
         };
 
         SDP(const double min, const double max, const int epochs, const double learing_rate) : m_min(min), m_max(max), m_lr(learing_rate), m_epochs(epochs){};
-        double perform(double& value, int sample_number);
+        double perform(double& value, int sample_number, bool trainModel);
+        double predict(double& value);
         //void get_weights(JsonDocument& doc, String key);
         void set_weights(std::array<double, 4>& weights);
         void train();

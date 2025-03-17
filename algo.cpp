@@ -15,7 +15,7 @@ namespace RTPNN
         m_levels.push_back((m_level_param_1 * value) + (m_level_param_2 * m_levels.back()));
     }
 
-    double SDP::perform(double& value, int sample_number)
+    double SDP::perform(double& value, int sample_number, bool trainModel)
     {
         auto val_norm = normalize(value, m_min, m_max);
         if (!m_values.empty())
@@ -28,7 +28,7 @@ namespace RTPNN
         m_predictions.push_back(predict(val_norm));
 
 
-        if(m_values.size() == 16){
+        if(m_values.size() == 40 && trainModel){ // 16
             train();
         }
         return denormalize(m_predictions.back(), m_min, m_max);
