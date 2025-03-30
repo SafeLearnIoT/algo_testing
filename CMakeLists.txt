@@ -3,4 +3,6 @@ project(algo)
 
 set(CMAKE_CXX_STANDARD 20)
 
-add_executable(algo main.cpp algo.cpp algo.h utils.h)
+add_executable(algo main.cpp algo.cpp algo.h utils.h
+        test.cpp
+        test.h)

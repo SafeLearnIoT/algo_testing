@@ -4,116 +4,66 @@
 #include <vector>
 #include <cmath>
 #include "algo.h"
+#include "test.h"
 
-struct EnvData {
-    double temperature;
-    double pressure;
-    double humidity;
-    double iaq;
-
-    [[nodiscard]] std::string toString() const {
-        return '[' + std::to_string(temperature) + " " + std::to_string(pressure) + " " + std::to_string(humidity) + " " + std::to_string(iaq) + ']';
-    }
-};
-
-std::vector<EnvData> readCsv(std::string filename) {
-    std::vector<EnvData> data;
-    std::ifstream file(filename);
-
-    if (!file.is_open()) {
-        std::cerr << "Failed to open file: " << filename << std::endl;
-        return data;
-    }
-
-    std::string line;
-    while (std::getline(file, line)) {
-        std::vector<std::string> row;
-        std::stringstream ss(line);
-        std::string cell;
-
-        while (std::getline(ss, cell, ',')) {
-            row.push_back(cell);
-        }
-
-        data.push_back(EnvData {
-            std::round(atof(row[0].c_str())*10.0)/10.0,
-            std::round(atof(row[1].c_str())*10.0)/10.0,
-            std::round(atof(row[2].c_str())*10.0)/10.0,
-            std::round(atof(row[3].c_str())*10.0)/10.0,
-        });
-    }
-
-    file.close();
-
-    return data;
-};
-
-void printData(const std::vector<EnvData> &envData, const int n) {
-    for (int i = 0; i < (envData.size() > n ? n : envData.size()); i++) {
-        std::cout << envData[i].toString() << std::endl;
-    }
-};
-
-double getMax(const std::vector<EnvData> &envData) {
-    auto max = 0.0;
-    for (const auto el : envData) {
-        if (el.temperature > max) {
-            max = el.temperature;
-        }
-    }
-    return max;
-}
-double getMin(const std::vector<EnvData> &envData) {
-    auto min = 1000.0;
-    for (const auto el : envData) {
-        if (el.temperature < min) {
-            min = el.temperature;
-        }
-    }
-    return min;
-}
 
 int main() {
-    auto data = readCsv("../output_outside_dummy_const_5_data.csv");
-    //auto data = readCsv("../output_inside_dummy_const_15_data.csv");
-    //auto data = readCsv("../output_inside_dummy_const_5_data.csv");
+    //auto data = readCsv("../output_outside_dummy_const_5_data.csv");
+    auto insideData = readEnvdataCsv("../esp8266_inside.csv");
+    auto outsideData = readEnvdataCsv("../esp8266_outside.csv");
+    auto windowData = readWindowCsv("../esp32_window.csv");
+    auto lightData = readLightData("../esp32_light.csv");
 
-    int learningSize = static_cast<int>(std::round(data.size()*0.7));
-    double mape_learn = 0;
-    double mape_test = 0;
-    double mape_whole = 0;
+    auto epochs = {
+        5, 10, 20, 30, 35, 40, 45, 50, 55, 60, 65, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160, 170, 180, 200
+    };
+    auto learning_rates = {.005, .01, .05, .06, .07, .1, .2, .3, .4, .5, .6, .7};
+    auto train_batch_sizes = {7, 8, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 25, 30, 50, 60, 100};
+    //auto epochs = {130};
+    //auto learning_rates = {.5};
+    //auto train_batch_sizes = {20};
 
-    auto min = getMin(data);
-    auto max = getMax(data);
-
-
-    int epochs = 100; // best 70
-    double learning_rate = 0.05; // best 0.05
-
-    RTPNN::SDP temperature{min, max, epochs, learning_rate};
-
-    int i = 0;
-    double pred = 0;
-    for (auto el : data) {
-        auto abs = std::abs(el.temperature-pred);
-        std::cout << i << ". Reading: " << el.temperature << " | Prediction:" << pred << " | Difference: " << abs << std::endl;
-        auto mape_val = abs/std::abs(el.temperature);
-        mape_whole += mape_val;
-        if (i > learningSize) {
-            mape_test += mape_val;
-        } else {
-            mape_learn += mape_val;
-
+    std::vector<Configuration> configs;
+    for (auto e: epochs) {
+        for (auto lr: learning_rates) {
+            for (auto tr: train_batch_sizes) {
+                configs.emplace_back(e, lr, tr);
+            }
         }
-        pred = std::round(temperature.perform(el.temperature, i, i <= learningSize )*10)/10;
-
-        ++i;
     }
 
-    std::cout << "Min: " << min << " | Max: " << max << std::endl;
-    std::cout << "Whole MAPE: " << (mape_whole/data.size())*100 << "%" << std::endl;
-    std::cout << "Train MAPE: " << (mape_learn/learningSize)*100 << "%" << std::endl;
-    std::cout << "Test MAPE: " << (mape_test/(data.size()-learningSize))*100 << "%" << std::endl;
+    auto envLabels = std::vector{"Temperature", "Pressure", "Humidity", "IAQ"};
+    auto windowLabels = std::vector{"Blinds1", "Blinds2", "Window"};
+
+    for (int i = 0; i < insideData.size(); i++) {
+        std::cout << ">> " << envLabels.at(i) << " IN" << std::endl;
+        Test test(insideData.at(i), configs);
+        test.runAllTests();
+        auto result = test.getBestResult();
+        result.printResult();
+    }
+
+    for (int i = 0; i < outsideData.size(); i++) {
+        std::cout << ">> " << envLabels.at(i) << " OUT" << std::endl;
+        Test test(outsideData.at(i), configs);
+        test.runAllTests();
+        auto result = test.getBestResult();
+        result.printResult();
+    }
+
+    for (int i = 0; i < windowData.size(); i++) {
+        std::cout << ">> " << windowLabels.at(i) << std::endl;
+        Test test(windowData.at(i), configs);
+        test.runAllTests();
+        auto result = test.getBestResult();
+        result.printResult();
+    }
+
+    std::cout << ">> Light" << std::endl;
+    Test test(lightData, configs);
+    test.runAllTests();
+    auto result = test.getBestResult();
+    result.printResult();
 
     return 0;
 }
